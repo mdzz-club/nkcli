@@ -1,98 +1,66 @@
-package nkcli
+package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
-	"time"
 
-	"github.com/nbd-wtf/go-nostr"
+	nkcli "github.com/mdzz-club/nkcli/internal"
+	"github.com/urfave/cli/v2"
 )
 
-func UpdateRelays(ctx context.Context, key *KeyInfo, boots []string, w *sync.WaitGroup) {
-	defer w.Done()
+var (
+	errInvalidRelayUrl = errors.New("Invalid relay URL")
+)
 
-	now := time.Now()
-	filters := nostr.Filters{{
-		Kinds:   []int{0, 10002},
-		Authors: []string{key.Pubkey},
-		Limit:   2,
-		Until:   &now,
-	}}
+func updateAction(c *cli.Context) error {
+	dbpath := c.String("db")
+	relays := c.StringSlice("relay")
 
-	ech := make(chan *nostr.Event, len(boots))
-	wg := new(sync.WaitGroup)
-	db := ctx.Value("db").(*DB)
-
-	relays := make([]string, 0)
-
-	if key.Relays != nil {
-		for u, v := range key.Relays {
-			if !v.Read {
-				continue
-			}
-
-			relays = append(relays, u)
-		}
-	} else {
-		relays = append(relays, boots...)
+	if relays == nil {
+		relays = DefaultRelays
 	}
 
-	for _, url := range boots {
-		wg.Add(1)
-		go subRelay(ctx, url, filters, ech, wg)
+	for _, url := range relays {
+		if !strings.HasPrefix(url, "ws://") && !strings.HasPrefix(url, "wss://") {
+			return errors.Join(errInvalidRelayUrl, errors.New(url))
+		}
 	}
 
-	gch, cancel := context.WithCancel(ctx)
-	go func() {
-		for {
-			select {
-			case e := <-ech:
-				if e == nil {
-					break
-				}
-				fmt.Printf("Pubkey: %v Kind: %v\n", e.PubKey, e.Kind)
+	fmt.Print("Will use these relays to update your keys data:\n\n")
 
-				if e.Kind == 0 {
-					db.SaveEvent(bucketMetadatas, e)
-				} else if e.Kind == 10002 {
-					db.SaveEvent(bucketRelays, e)
-				}
-			case <-gch.Done():
-				return
-			}
-		}
-	}()
+	for _, url := range relays {
+		fmt.Printf("  %v\n", url)
+	}
 
-	wg.Wait()
-	cancel()
-}
-
-func subRelay(ctx context.Context, relay string, filter nostr.Filters, ch chan<- *nostr.Event, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	conn, err := nostr.RelayConnect(context.Background(), relay)
+	db, err := nkcli.Open(dbpath)
 
 	if err != nil {
-		return
+		return err
 	}
 
-	defer conn.Close()
+	defer db.Close()
 
-	sub := conn.Subscribe(ctx, filter)
-	defer sub.Unsub()
+	list, err := db.List()
 
-	for {
-		select {
-		case ev := <-sub.Events:
-			ch <- ev
-		case <-sub.EndOfStoredEvents:
-			return
-		case <-time.After(time.Second * 3):
-			fmt.Printf("Relay %v connect timeout.\n", relay)
-			return
-		case <-ctx.Done():
-			return
-		}
+	if err != nil {
+		return err
 	}
+
+	fmt.Printf("\nFound %v keys\n\n", len(list))
+
+	wg := new(sync.WaitGroup)
+
+	ctx := context.WithValue(c.Context, "db", db)
+
+	for _, item := range list {
+		wg.Add(1)
+		go nkcli.UpdateRelays(ctx, item, relays, wg)
+	}
+
+	wg.Wait()
+
+	return nil
 }

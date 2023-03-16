@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/mdzz-club/nkcli"
+	nkcli "github.com/mdzz-club/nkcli/internal"
 	"github.com/urfave/cli/v2"
 )
 

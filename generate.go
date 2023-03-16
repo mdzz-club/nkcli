@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/mdzz-club/nkcli"
+	nkcli "github.com/mdzz-club/nkcli/internal"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip06"
 	"github.com/nbd-wtf/go-nostr/nip19"

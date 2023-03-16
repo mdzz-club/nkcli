@@ -1,4 +1,4 @@
-package nkcli
+package internal
 
 import (
 	"encoding/json"
