@@ -1,34 +1,23 @@
-name: goreleaser
+name: Release
 
 on:
   push:
     tags:
-      - '*'
-
-permissions:
-  contents: write
+    - '*'
 
 jobs:
-  goreleaser:
+  release:
+    name: Release
     runs-on: ubuntu-latest
     steps:
-      -
-        name: Checkout
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      -
-        name: Set up Go
-        uses: actions/setup-go@v3
-      -
-        name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
-        with:
-          # either 'goreleaser' (default) or 'goreleaser-pro'
-          distribution: goreleaser
-          version: latest
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
-          # Your GoReleaser Pro key, if you are using the 'goreleaser-pro' distribution
-          # GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+    - name: Checkout code
+      uses: actions/checkout@master
+    - name: Setup Go
+      uses: actions/setup-go@v4
+    - name: Cross build
+      run: make cross
+    - name: Create release
+      uses: meeDamian/github-release@2.0
+      with:
+        token: ${{ secrets.TOKEN }}
+        files: dist/
