@@ -7,7 +7,9 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
+	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip19"
 )
 
@@ -25,11 +27,12 @@ type NostrConnectInfo struct {
 }
 
 var (
-	hexKeyRegexp       = regexp.MustCompile(`^[0-9a-f]{64}$`)
-	errInvalidScheme   = errors.New("Invalid scheme")
-	errInvalidPubkey   = errors.New("Invalid pubkey")
-	errInvalidRelay    = errors.New("Invalid relay")
-	errInvalidMetadata = errors.New("Invalid metadata")
+	hexKeyRegexp         = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	errInvalidScheme     = errors.New("Invalid scheme")
+	errInvalidPubkey     = errors.New("Invalid pubkey")
+	errInvalidRelay      = errors.New("Invalid relay")
+	errInvalidMetadata   = errors.New("Invalid metadata")
+	errInvalidEventField = errors.New("Invalid event field")
 )
 
 func SerializeKeys(l []string) []string {
@@ -98,4 +101,49 @@ func Scanline() string {
 	}
 
 	return line
+}
+
+func ParseEvent(obj map[string]any) (*nostr.Event, error) {
+	e := new(nostr.Event)
+
+	if v, ok := obj["pubkey"].(string); ok {
+		e.PubKey = v
+	}
+
+	if v, ok := obj["id"].(string); ok {
+		if len(e.PubKey) > 0 {
+			return nil, errors.New("Invalid event ID")
+		}
+
+		e.ID = v
+	}
+
+	if v, ok := obj["kind"].(float64); !ok {
+		return nil, errInvalidEventField
+	} else {
+		e.Kind = int(v)
+	}
+
+	if v, ok := obj["created_at"].(float64); !ok {
+		return nil, errInvalidEventField
+	} else {
+		e.CreatedAt = time.Unix(int64(v), 0)
+	}
+
+	if v, ok := obj["content"].(string); !ok {
+		return nil, errInvalidEventField
+	} else {
+		e.Content = v
+	}
+
+	e.Tags = parseTags(obj["tags"].([]interface{}))
+
+	return e, nil
+}
+
+func parseTags(i []interface{}) (tags nostr.Tags) {
+	for _, item := range i {
+		tags = append(tags, nostr.Tag(item.([]string)))
+	}
+	return
 }

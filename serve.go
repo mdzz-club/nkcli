@@ -82,30 +82,28 @@ Run 'nkcli help' get more.
 
 					req.Response(req.Conn.PubKey)
 				case "sign_event":
-					obj := req.Params[0].(map[string]interface{})
-					tmpEv := new(nostr.Event)
-					tmpEv.ID = obj["id"].(string)
-					tmpEv.PubKey = obj["pubkey"].(string)
-					tmpEv.Kind = int(obj["kind"].(float64))
-					tmpEv.CreatedAt = time.Unix(int64(obj["created_at"].(float64)), 0)
-					tmpEv.Content = obj["content"].(string)
-					tmpEv.Tags = parseTags(obj["tags"].([]interface{}))
+					ev, err := nkcli.ParseEvent(req.Params[0].(map[string]interface{}))
+
+					if err != nil {
+						req.Response(err)
+						continue
+					}
 
 					fmt.Printf("Event detail:\n\n")
 
-					printEvent(tmpEv)
+					printEvent(ev)
 
 					if err = req.CheckAllow("sign_event"); err != nil {
 						req.Response(err)
 						continue
 					}
 
-					if err = tmpEv.Sign(req.Conn.KeyInfo.Privkey); err != nil {
+					if err = ev.Sign(req.Conn.KeyInfo.Privkey); err != nil {
 						req.Response(err)
 						continue
 					}
 
-					req.Response(tmpEv.Sig)
+					req.Response(ev)
 				case "disconnect":
 					fmt.Printf("%v Request disconnect.", req.Conn.AppID)
 
