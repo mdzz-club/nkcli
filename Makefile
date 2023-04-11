@@ -7,7 +7,7 @@ OSS := darwin linux windows
 ARCHS := amd64 arm64
 
 nkcli:
-	go build -ldflags=$(BUILD_LDFLAGS) -o nkcli .
+	go build -ldflags=$(BUILD_LDFLAGS) -o $(BIN) .
 
 .PHONY: clean
 clean:
